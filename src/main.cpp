@@ -12,6 +12,9 @@ Preferences preferences; // wifi config store
 String wifi_ssid;        // Store the name of the wireless network
 String wifi_password;    // Store the password of the wireless network
 
+const char* mqtt_server = "192.168.1.8";
+
+
 #define TFT_GREY 0x7BEF
 
 #define X_LOCAL 40
