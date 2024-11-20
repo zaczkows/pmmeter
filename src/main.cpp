@@ -1,9 +1,10 @@
-#include "Adafruit_PM25AQI.h"
-#include "DFRobot_SHT20.h"
 #include "Free_Fonts.h"
-#include "WiFi.h"
+#include "mqtt_client.h"
+#include <Adafruit_PM25AQI.h>
+#include <DFRobot_SHT20.h>
 #include <M5Stack.h>
 #include <Preferences.h>
+#include <WiFi.h>
 #include <Wire.h>
 
 DFRobot_SHT20 sht20;
@@ -11,9 +12,9 @@ Adafruit_PM25AQI aqi;
 Preferences preferences; // wifi config store
 String wifi_ssid;        // Store the name of the wireless network
 String wifi_password;    // Store the password of the wireless network
+MqttClient mqtt_client;
 
-const char* mqtt_server = "192.168.1.8";
-
+const IPAddress mqtt_server = IPAddress(192, 168, 1, 8);
 
 #define TFT_GREY 0x7BEF
 
@@ -214,6 +215,9 @@ void setup() {
     preferences.begin("wifi-config");
     restoreConfig();
     setupWiFi();
+
+    // Init MQTT
+    mqtt_client.use_server(mqtt_server);
 }
 
 void loop() {
@@ -221,10 +225,13 @@ void loop() {
 
     if (!aqi.read(&data)) {
         Serial.println("Could not read from AQI");
-        delay(500); // try again in a bit!
-        return;
     }
-    Serial.println("AQI reading success");
+
+    if (WiFi.isConnected()) {
+        mqtt_client.loop();
+    }
+
+    mqtt_client.publish_pms(data);
 
     LCD_Display_Val(&data);
     TempHumRead();
