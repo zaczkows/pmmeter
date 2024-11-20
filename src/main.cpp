@@ -52,8 +52,9 @@ void setup()
   }
 
   Serial.println("PM25 found!");
-
-  sht20.initSHT20(); // Init SHT20 Sensor
+ 
+ // Init SHT20 Sensor
+  sht20.initSHT20();
   delay(100);
   sht20.checkSHT20();
 }
