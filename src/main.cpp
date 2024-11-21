@@ -1,9 +1,10 @@
-#include "Adafruit_PM25AQI.h"
-#include "DFRobot_SHT20.h"
 #include "Free_Fonts.h"
-#include "WiFi.h"
+#include "mqtt_client.h"
+#include <Adafruit_PM25AQI.h>
+#include <DFRobot_SHT20.h>
 #include <M5Stack.h>
 #include <Preferences.h>
+#include <WiFi.h>
 #include <Wire.h>
 
 DFRobot_SHT20 sht20;
@@ -11,6 +12,9 @@ Adafruit_PM25AQI aqi;
 Preferences preferences; // wifi config store
 String wifi_ssid;        // Store the name of the wireless network
 String wifi_password;    // Store the password of the wireless network
+MqttClient mqtt_client;
+
+const IPAddress mqtt_server = IPAddress(192, 168, 1, 8);
 
 #define TFT_GREY 0x7BEF
 
@@ -211,54 +215,27 @@ void setup() {
     preferences.begin("wifi-config");
     restoreConfig();
     setupWiFi();
+
+    // Init MQTT
+    mqtt_client.use_server(mqtt_server);
 }
 
 void loop() {
     PM25_AQI_Data data;
 
-    if (!aqi.read(&data)) {
-        Serial.println("Could not read from AQI");
-        delay(500); // try again in a bit!
-        return;
+    if (WiFi.isConnected()) {
+        mqtt_client.loop();
     }
-    Serial.println("AQI reading success");
 
-    LCD_Display_Val(&data);
-    TempHumRead();
+    if (aqi.read(&data)) {
+        LCD_Display_Val(&data);
+        TempHumRead();
+        mqtt_client.publish_pms(data);
+    } else {
+        Serial.println("Could not read from AQI");
+    }
+
     printWiFiInformation();
-
-    /*Serial.println();
-    Serial.println(F("---------------------------------------"));
-    Serial.println(F("Concentration Units (standard)"));
-    Serial.println(F("---------------------------------------"));
-    Serial.print(F("PM 1.0: "));
-    Serial.print(data.pm10_standard);
-    Serial.print(F("\t\tPM 2.5: "));
-    Serial.print(data.pm25_standard);
-    Serial.print(F("\t\tPM 10: "));
-    Serial.println(data.pm100_standard);
-    Serial.println(F("Concentration Units (environmental)"));
-    Serial.println(F("---------------------------------------"));
-    Serial.print(F("PM 1.0: "));
-    Serial.print(data.pm10_env);
-    Serial.print(F("\t\tPM 2.5: "));
-    Serial.print(data.pm25_env);
-    Serial.print(F("\t\tPM 10: "));
-    Serial.println(data.pm100_env);
-    Serial.println(F("---------------------------------------"));
-    Serial.print(F("Particles > 0.3um / 0.1L air:"));
-    Serial.println(data.particles_03um);
-    Serial.print(F("Particles > 0.5um / 0.1L air:"));
-    Serial.println(data.particles_05um);
-    Serial.print(F("Particles > 1.0um / 0.1L air:"));
-    Serial.println(data.particles_10um);
-    Serial.print(F("Particles > 2.5um / 0.1L air:"));
-    Serial.println(data.particles_25um);
-    Serial.print(F("Particles > 5.0um / 0.1L air:"));
-    Serial.println(data.particles_50um);
-    Serial.print(F("Particles > 10 um / 0.1L air:"));
-    Serial.println(data.particles_100um);
-    Serial.println(F("---------------------------------------"));*/
 
     delay(1000);
 }
