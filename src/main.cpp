@@ -1,17 +1,14 @@
 #include "Free_Fonts.h"
+#include "ble.h"
 #include "mqtt_client.h"
+#include "wifi.h"
 #include <Adafruit_PM25AQI.h>
 #include <DFRobot_SHT20.h>
 #include <M5Stack.h>
-#include <Preferences.h>
-#include <WiFi.h>
 #include <Wire.h>
 
 DFRobot_SHT20 sht20;
 Adafruit_PM25AQI aqi;
-Preferences preferences; // wifi config store
-String wifi_ssid;        // Store the name of the wireless network
-String wifi_password;    // Store the password of the wireless network
 MqttClient mqtt_client;
 
 const IPAddress mqtt_server = IPAddress(192, 168, 1, 8);
@@ -143,44 +140,6 @@ void TempHumRead(void) {
     M5.Lcd.print(humd);
 }
 
-void printWiFiInformation() {
-    M5.Lcd.setTextColor(TFT_BLUE, TFT_BLACK);
-    M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 10, FRONT);
-    M5.Lcd.print("                     ");
-    M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 10, FRONT);
-    M5.Lcd.print("WiFi SSID: ");
-    M5.Lcd.print(WiFi.SSID());
-    M5.Lcd.print(",  IP: ");
-    M5.Lcd.print(WiFi.localIP());
-}
-
-void restoreConfig() {
-    /* Check whether there is wifi configuration information storage, if there is
-     * 1 return, if no return 0 */
-    const char *WIFI_SSID_PREFERENCE = "WIFI_SSID";
-    const char *WIFI_PASSWD_PREFERENCE = "WIFI_PASSWD";
-    wifi_ssid = preferences.getString(WIFI_SSID_PREFERENCE);
-    wifi_password = preferences.getString(WIFI_PASSWD_PREFERENCE);
-    M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 9, FRONT);
-
-    if (wifi_ssid.length() > 0 && wifi_password.length() > 0) {
-        Serial.printf("Loaded settings from preferences: ssid: %s, passwd: %s\n", wifi_ssid.c_str(),
-                      wifi_password.c_str());
-    } else {
-        // TODO: fill if necessary on initial startup
-        wifi_ssid = "";
-        wifi_password = "";
-        preferences.putString(WIFI_SSID_PREFERENCE, wifi_ssid);
-        preferences.putString(WIFI_PASSWD_PREFERENCE, wifi_password);
-    }
-}
-
-void setupWiFi() {
-    WiFi.mode(WIFI_MODE_STA); // Set Wi-Fi mode to WIFI_MODE_STA.
-    WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
-    WiFi.setAutoReconnect(true);
-}
-
 void setup() {
     // Serial is initialized by M5.begin
     M5.begin(true, false, true, true);
@@ -212,18 +171,19 @@ void setup() {
     sht20.checkSHT20();
 
     // Init WiFi
-    preferences.begin("wifi-config");
-    restoreConfig();
     setupWiFi();
 
     // Init MQTT
     mqtt_client.use_server(mqtt_server);
+
+    // Setup BLE
+    setup_ble();
 }
 
 void loop() {
     PM25_AQI_Data data;
 
-    if (WiFi.isConnected()) {
+    if (is_wifi_connected()) {
         mqtt_client.loop();
     }
 
@@ -231,6 +191,7 @@ void loop() {
         LCD_Display_Val(&data);
         TempHumRead();
         mqtt_client.publish_pms(data);
+        update_ble(data);
     } else {
         Serial.println("Could not read from AQI");
     }

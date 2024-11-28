@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Adafruit_PM25AQI.h>
 #include <PubSubClient.h>
 #include <WiFiClient.h>
