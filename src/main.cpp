@@ -1,7 +1,5 @@
 #include "Free_Fonts.h"
 #include "ble.h"
-#include "mqtt_client.h"
-#include "wifi.h"
 #include <Adafruit_PM25AQI.h>
 #include <DFRobot_SHT20.h>
 #include <M5Stack.h>
@@ -9,9 +7,6 @@
 
 DFRobot_SHT20 sht20;
 Adafruit_PM25AQI aqi;
-MqttClient mqtt_client;
-
-const IPAddress mqtt_server = IPAddress(192, 168, 1, 8);
 
 #define TFT_GREY 0x7BEF
 
@@ -140,10 +135,15 @@ void TempHumRead(void) {
     M5.Lcd.print(humd);
 }
 
+static std::uint8_t brightness = 100;
+static bool display_on = true;
+static unsigned long last_time = 0;
+
 void setup() {
     // Serial is initialized by M5.begin
     M5.begin(true, false, true, true);
     M5.Lcd.clear();
+    M5.Lcd.setBrightness(brightness);
     header("Initializing...", TFT_BLACK);
 
     // Wait three seconds for sensor to boot up!
@@ -170,33 +170,61 @@ void setup() {
     delay(100);
     sht20.checkSHT20();
 
-    // Init WiFi
-    setupWiFi();
-
-    // Init MQTT
-    mqtt_client.use_server(mqtt_server);
-
     // Setup BLE
     setup_ble();
+
+    last_time = millis();
 }
 
 void loop() {
     PM25_AQI_Data data;
+    M5.update();
 
-    if (is_wifi_connected()) {
-        mqtt_client.loop();
+    const unsigned long now = millis();
+    const unsigned long time_diff = now - last_time;
+    last_time = now;
+    Serial.printf("Now = %lu, diff = %lu\n", now, time_diff);
+
+    Serial.printf("Buttons pressed: A: %d, B: %d, C: %d\n", (int)M5.BtnA.wasPressed(), (int)M5.BtnB.wasPressed(),
+                  (int)M5.BtnC.wasPressed());
+
+    if (M5.BtnA.wasPressed()) {
+        Serial.println("Button A was pressed");
+        if (brightness >= 10) {
+            brightness -= 10;
+        } else {
+            brightness = 0;
+        }
+        M5.Lcd.setBrightness(brightness);
+    }
+
+    if (M5.BtnB.wasPressed()) {
+        Serial.println("Button B was pressed");
+        if (brightness <= 90) {
+            brightness += 10;
+        } else {
+            brightness = 100;
+        }
+        M5.Lcd.setBrightness(brightness);
+    }
+
+    if (M5.BtnB.wasPressed()) {
+        Serial.println("Button C was pressed");
+        display_on = !display_on;
+        if (display_on) {
+            M5.Lcd.wakeup();
+        } else {
+            M5.Lcd.sleep();
+        }
     }
 
     if (aqi.read(&data)) {
         LCD_Display_Val(&data);
         TempHumRead();
-        mqtt_client.publish_pms(data);
         update_ble(data);
     } else {
         Serial.println("Could not read from AQI");
     }
 
-    printWiFiInformation();
-
-    delay(1000);
+    // delay(1000);
 }
