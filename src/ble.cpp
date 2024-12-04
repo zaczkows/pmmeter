@@ -1,5 +1,6 @@
 #include "ble.h"
 
+#include "BTHome.h"
 #include <NimBLEDevice.h>
 #include <NimBLEUUID.h>
 
@@ -133,10 +134,17 @@ class DescriptorCallbacks : public NimBLEDescriptorCallbacks {
 static DescriptorCallbacks dscCallbacks;
 static CharacteristicCallbacks chrCallbacks;
 
-static NimBLECharacteristic *pm25_characteristic = nullptr;
+static NimBLECharacteristic *pm2p5_characteristic = nullptr;
+static NimBLECharacteristic *pm1p0_characteristic = nullptr;
+static NimBLECharacteristic *pm10p0_characteristic = nullptr;
+
+static BTHome bt_home;
 
 void setup_ble() {
     Serial.println("NimBLEDevice::init");
+
+    bt_home.begin("m5stack air quality", false, nullptr, false);
+#if 0
     /** sets device name */
     NimBLEDevice::init("m5stack air quality");
 
@@ -158,17 +166,32 @@ void setup_ble() {
     pServer->setCallbacks(new ServerCallbacks());
 
     Serial.println("air_quality_service = pServer->createService");
-    NimBLEService *air_quality_service = pServer->createService("9667d16d-0d7a-4b17-a5f7-a8ccbb4de47d");
+    const uint16_t air_quality_svc_number = 0x181A; //(((0x015 << 6) | 0x02) << 16) | 0x542;
+    NimBLEService *air_quality_service = pServer->createService(NimBLEUUID(air_quality_svc_number));
     if (!air_quality_service) {
-        Serial.println("Failed to create pm25_characteristic");
+        Serial.println("Failed to create air_quality_service");
     }
-    pm25_characteristic = air_quality_service->createCharacteristic(
-        NimBLEUUID((uint16_t)0x2BD6), NIMBLE_PROPERTY::READ |
-                    /** Require a secure connection for read and write access */
-                    NIMBLE_PROPERTY::READ_ENC // only allow reading if paired / encrypted
-    );
-    pm25_characteristic->setValue(0.0f);
-    pm25_characteristic->setCallbacks(&chrCallbacks);
+    pm1p0_characteristic =
+        air_quality_service->createCharacteristic(NimBLEUUID((uint16_t)0x2BD5), NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+    if (!pm1p0_characteristic) {
+        Serial.println("Failed to create pm1p0_characteristic");
+    }
+    pm1p0_characteristic->setValue(0);
+    pm1p0_characteristic->setCallbacks(&chrCallbacks);
+    pm2p5_characteristic =
+        air_quality_service->createCharacteristic(NimBLEUUID((uint16_t)0x2BD6), NIMBLE_PROPERTY::READ| NIMBLE_PROPERTY::NOTIFY);
+    if (!pm2p5_characteristic) {
+        Serial.println("Failed to create pm2p5_characteristic");
+    }
+    pm2p5_characteristic->setValue(0);
+    pm2p5_characteristic->setCallbacks(&chrCallbacks);
+    pm10p0_characteristic =
+        air_quality_service->createCharacteristic(NimBLEUUID((uint16_t)0x2BD7), NIMBLE_PROPERTY::READ| NIMBLE_PROPERTY::NOTIFY);
+    if (!pm10p0_characteristic) {
+        Serial.println("Failed to create pm10p0_characteristic");
+    }
+    pm10p0_characteristic->setValue(0);
+    pm10p0_characteristic->setCallbacks(&chrCallbacks);
 
     air_quality_service->start();
 
@@ -186,12 +209,31 @@ void setup_ble() {
     pAdvertising->start();
 
     Serial.println("Advertising Started");
+#endif
 }
 
 void update_ble(const PM25_AQI_Data &measurements) {
-    if (pm25_characteristic) {
-        pm25_characteristic->setValue(measurements.pm25_standard);
-        pm25_characteristic->notify(true);
+#if 0
+    if (pm1p0_characteristic) {
+        pm1p0_characteristic->setValue(measurements.pm10_standard);
+        pm1p0_characteristic->notify(true);
+    }
+    if (pm2p5_characteristic) {
+        pm2p5_characteristic->setValue(measurements.pm25_standard);
+        pm2p5_characteristic->notify(true);
+    }
+    if (pm10p0_characteristic) {
+        pm10p0_characteristic->setValue(measurements.pm100_standard);
+        pm10p0_characteristic->notify(true);
+    }
+#endif
+
+    bt_home.resetMeasurement();
+    bt_home.addMeasurement(ID_PM10, (std::uint64_t)measurements.pm10_standard);
+    bt_home.addMeasurement(ID_PM25, (std::uint64_t)measurements.pm25_standard);
+    bt_home.buildPacket();
+    if (!bt_home.isAdvertising()) {
+        bt_home.start();
     }
 }
 
