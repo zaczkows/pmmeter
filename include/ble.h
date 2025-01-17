@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Adafruit_PM25AQI.h>
+#include "sensors.h"
 
 void setup_ble();
-void update_ble(const PM25_AQI_Data &measurements);
-
+void update_measurements(const PM25_AQI_Data &measurements, const SHT20Data &th_data);
+void update_button();

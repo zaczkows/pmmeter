@@ -34,3 +34,5 @@
 # Arduino, etc.
 .pio
 .vscode
+.ccls
+.ccls-cache

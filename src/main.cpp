@@ -1,12 +1,11 @@
 #include "Free_Fonts.h"
-#include "ble.h"
-#include <Adafruit_PM25AQI.h>
-#include <DFRobot_SHT20.h>
 #include <M5Stack.h>
 #include <Wire.h>
 
-DFRobot_SHT20 sht20;
-Adafruit_PM25AQI aqi;
+#include "ble.h"
+#include "buttons.h"
+#include "sensors.h"
+#include "wifi.h"
 
 #define TFT_GREY 0x7BEF
 
@@ -117,33 +116,28 @@ void LCD_Display_Val(PM25_AQI_Data *data) {
     M5.Lcd.print(data->particles_100um);
 }
 
-void TempHumRead(void) {
-    float humd = sht20.readHumidity();    // Read Humidity
-    float temp = sht20.readTemperature(); // Read Temperature
-
+void TempHumPrint(const SHT20Data &th_data) {
     M5.Lcd.setTextColor(TFT_GREEN, TFT_BLACK);
     M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 8, FRONT);
     M5.Lcd.print("                     ");
     M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 8, FRONT);
     M5.Lcd.print("T M P : ");
-    M5.Lcd.print(temp);
+    M5.Lcd.print(th_data.temperature);
 
     M5.Lcd.setCursor(X_LOCAL + X_OFFSET, Y_LOCAL + Y_OFFSET * 8, FRONT);
     M5.Lcd.print("                     ");
     M5.Lcd.setCursor(X_LOCAL + X_OFFSET, Y_LOCAL + Y_OFFSET * 8, FRONT);
     M5.Lcd.print("H U M : ");
-    M5.Lcd.print(humd);
+    M5.Lcd.print(th_data.humidity);
 }
 
-static std::uint8_t brightness = 100;
-static bool display_on = true;
 static unsigned long last_time = 0;
 
 void setup() {
     // Serial is initialized by M5.begin
     M5.begin(true, false, true, true);
     M5.Lcd.clear();
-    M5.Lcd.setBrightness(brightness);
+    M5.Lcd.setBrightness(50);
     header("Initializing...", TFT_BLACK);
 
     // Wait three seconds for sensor to boot up!
@@ -155,76 +149,37 @@ void setup() {
 
     header("PM 2.5", TFT_BLACK);
 
-    // connect to the sensor over hardware serial
-    if (!aqi.begin_UART(&Serial2)) {
-        Serial.println("Could not find PM 2.5 sensor!");
-        while (1) {
-            delay(10);
-        }
-    }
-
-    Serial.println("PM25 found!");
-
-    // Init SHT20 Sensor
-    sht20.initSHT20();
-    delay(100);
-    sht20.checkSHT20();
+    init_sensors();
 
     // Setup BLE
     setup_ble();
+
+    // Setup buttons
+    setup_buttons();
+
+    // Setup WiFi
+    setup_wifi();
 
     last_time = millis();
 }
 
 void loop() {
     PM25_AQI_Data data;
+    SHT20Data th_data;
+    // M5.Lcd.clear();
     M5.update();
 
     const unsigned long now = millis();
     const unsigned long time_diff = now - last_time;
     last_time = now;
-    Serial.printf("Now = %lu, diff = %lu\n", now, time_diff);
+    Serial.printf("Waited for %lums\n", time_diff);
 
-    Serial.printf("Buttons pressed: A: %d, B: %d, C: %d\n", (int)M5.BtnA.wasPressed(), (int)M5.BtnB.wasPressed(),
-                  (int)M5.BtnC.wasPressed());
-
-    if (M5.BtnA.wasPressed()) {
-        Serial.println("Button A was pressed");
-        if (brightness >= 10) {
-            brightness -= 10;
-        } else {
-            brightness = 0;
-        }
-        M5.Lcd.setBrightness(brightness);
-    }
-
-    if (M5.BtnB.wasPressed()) {
-        Serial.println("Button B was pressed");
-        if (brightness <= 90) {
-            brightness += 10;
-        } else {
-            brightness = 100;
-        }
-        M5.Lcd.setBrightness(brightness);
-    }
-
-    if (M5.BtnB.wasPressed()) {
-        Serial.println("Button C was pressed");
-        display_on = !display_on;
-        if (display_on) {
-            M5.Lcd.wakeup();
-        } else {
-            M5.Lcd.sleep();
-        }
-    }
-
-    if (aqi.read(&data)) {
+    if (update_pm_data(data) && update_sht20_data(th_data)) {
         LCD_Display_Val(&data);
-        TempHumRead();
-        update_ble(data);
+        TempHumPrint(th_data);
+        show_net_status();
+        update_measurements(data, th_data);
     } else {
         Serial.println("Could not read from AQI");
     }
-
-    // delay(1000);
 }
