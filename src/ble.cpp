@@ -18,13 +18,12 @@ void setup_ble() {
 }
 
 void update_measurements(const PM25_AQI_Data &measurements, const SHT20Data &th_data) {
-    Serial.println("BLE update measurement data");
     xSemaphoreTake(BT_SEM, portMAX_DELAY);
     bt_home.resetMeasurement();
     bt_home.addMeasurement(ID_PM10, (std::uint64_t)measurements.pm10_standard);
     bt_home.addMeasurement(ID_PM25, (std::uint64_t)measurements.pm25_standard);
-    bt_home.addMeasurement(ID_TEMPERATURE, th_data.temperature);
-    bt_home.addMeasurement(ID_HUMIDITY, th_data.humidity);
+    bt_home.addMeasurement(ID_TEMPERATURE_PRECISE, th_data.temperature);
+    bt_home.addMeasurement(ID_HUMIDITY_PRECISE, th_data.humidity);
     bt_home.buildPacket();
     if (!bt_home.isAdvertising()) {
         bt_home.start();
@@ -33,7 +32,6 @@ void update_measurements(const PM25_AQI_Data &measurements, const SHT20Data &th_
 }
 
 void update_button() {
-    Serial.println("BLE update button data");
     xSemaphoreTake(BT_SEM, portMAX_DELAY);
     bt_home.resetMeasurement();
     bt_home.addMeasurement_state(EVENT_BUTTON, EVENT_BUTTON_PRESS);

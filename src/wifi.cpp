@@ -18,18 +18,15 @@ static bool pump_working = false;
 static void state_task(void *pvParameters) {
     ESP_LOGI(TAG, "Start state update task");
 
-    while (!WiFi.isConnected()) {
-        Serial.printf("Waiting for WiFi connection...");
-        delay(1000);
-    }
-
-    // char auth_buffer[256] = {0};
-    // snprintf(auth_buffer, 256, "Authorization: Bearer ");
     IPAddress ha_server(192, 168, 1, 8);
     WiFiClient client;
     while (true) {
+        while (!WiFi.isConnected()) {
+            Serial.printf("Waiting for WiFi connection...");
+            delay(30000);
+        }
+
         if (client.connect(ha_server, 8123)) {
-            Serial.println("connecting...");
             client.println("GET /api/states/switch.pumpsocket HTTP/1.1");
             client.println("Host: 192.168.1.8:8123");
             client.println("User-Agent: ArduinoWiFi/1.1");
@@ -126,7 +123,13 @@ void show_net_status() {
     M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
     M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 10, FRONT);
     M5.Lcd.print("Wifi ssid: ");
+    if (WiFi.isConnected()){
+    M5.Lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
     M5.Lcd.print(wifi_ssid.c_str());
+    }else{
+    M5.Lcd.setTextColor(TFT_RED, TFT_BLACK);
+    M5.Lcd.print("<<< disconnected >>>");
+    }
     M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 11, FRONT);
     M5.Lcd.print("Pump state: ");
     if (pump_working) {
