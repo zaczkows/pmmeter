@@ -40,7 +40,7 @@ static void buttons_task(void *pvParameters) {
             // Serial.println("Button C was pressed");
             update_button();
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 

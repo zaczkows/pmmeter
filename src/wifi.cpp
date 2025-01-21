@@ -17,18 +17,30 @@ static bool pump_working = false;
 
 static void state_task(void *pvParameters) {
     ESP_LOGI(TAG, "Start state update task");
+    while (!WiFi.isConnected()) {
+        Serial.printf("Waiting for initial WiFi connection...");
+        delay(5000);
+    }
 
-    IPAddress ha_server(192, 168, 1, 8);
+    IPAddress ha_server(192, 168, 2, 1);
     WiFiClient client;
+    bool should_reconnect = false;
     while (true) {
         while (!WiFi.isConnected()) {
             Serial.printf("Waiting for WiFi connection...");
+            if (should_reconnect) {
+                WiFi.reconnect();
+                should_reconnect = false;
+            }
             delay(30000);
+            if (WiFi.isConnected()) {
+                should_reconnect = true;
+            }
         }
 
         if (client.connect(ha_server, 8123)) {
             client.println("GET /api/states/switch.pumpsocket HTTP/1.1");
-            client.println("Host: 192.168.1.8:8123");
+            client.println("Host: 192.168.2.1:8123");
             client.println("User-Agent: ArduinoWiFi/1.1");
             client.println("Accept: */*");
             client.println("Content-Type: application/json");
@@ -81,7 +93,7 @@ void restoreConfig() {
     ha_token = preferences.getString(HA_TOKEN);
 
     if (wifi_ssid.length() > 0 && wifi_password.length() > 0) {
-        Serial.printf("Loaded settings from preferences: ssid: %s, passwd: %s\n", wifi_ssid.c_str(),
+        Serial.printf("Loaded settings from preferences: ssid: '%s', passwd: '%s'\n", wifi_ssid.c_str(),
                       wifi_password.c_str());
     } else {
         // TODO: fill if necessary on initial startup
@@ -123,20 +135,25 @@ void show_net_status() {
     M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
     M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 10, FRONT);
     M5.Lcd.print("Wifi ssid: ");
-    if (WiFi.isConnected()){
-    M5.Lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
-    M5.Lcd.print(wifi_ssid.c_str());
-    }else{
-    M5.Lcd.setTextColor(TFT_RED, TFT_BLACK);
-    M5.Lcd.print("<<< disconnected >>>");
+    if (WiFi.isConnected()) {
+        M5.Lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
+        M5.Lcd.print(wifi_ssid.c_str());
+        M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+        M5.Lcd.print(", IP: ");
+        M5.Lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
+        M5.Lcd.print(WiFi.localIP().toString().c_str());
+    } else {
+        M5.Lcd.setTextColor(TFT_RED, TFT_BLACK);
+        M5.Lcd.print("<<< disconnected >>>");
     }
+    M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
     M5.Lcd.setCursor(X_LOCAL, Y_LOCAL + Y_OFFSET * 11, FRONT);
     M5.Lcd.print("Pump state: ");
     if (pump_working) {
         M5.Lcd.setTextColor(TFT_GREEN, TFT_BLACK);
-        M5.Lcd.print("on ");
+        M5.Lcd.print("ON ");
     } else {
         M5.Lcd.setTextColor(TFT_RED, TFT_BLACK);
-        M5.Lcd.print("off");
+        M5.Lcd.print("OFF");
     }
 }
